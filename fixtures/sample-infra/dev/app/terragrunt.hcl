@@ -24,7 +24,6 @@ dependencies {
 }
 
 inputs = {
-  
   cluster_name = dependency.eks.outputs.cluster_name
   db_endpoint  = dependency.rds.outputs.endpoint
 }

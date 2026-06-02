@@ -3,6 +3,8 @@
 [![CI](https://github.com/LanZBoY/terragrunt-diagram-trace/actions/workflows/ci.yml/badge.svg)](https://github.com/LanZBoY/terragrunt-diagram-trace/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+**English** | [繁體中文](README.zh-TW.md)
+
 A VS Code extension that scans a Terragrunt project, draws its **reference graph**, and
 lets you **jump straight to referenced files**.
 
