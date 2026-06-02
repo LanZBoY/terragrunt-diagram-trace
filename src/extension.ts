@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { buildModel } from './core/scanner';
+import { parseTerragrunt } from './core/parser';
 import type { GraphModel } from './core/model';
 import { TerragruntTreeProvider, type TreeNode } from './providers/treeProvider';
 import { TerragruntLinkProvider, TerragruntDefinitionProvider } from './providers/navProvider';
@@ -87,6 +88,43 @@ function publishDiagnostics(): void {
       ),
     ]);
   }
+}
+
+const validateTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+/** Re-parse a .hcl document's in-memory text and set/clear its syntax-error diagnostic live. */
+async function validateDocument(doc: vscode.TextDocument): Promise<void> {
+  if (!diagnostics || doc.uri.scheme !== 'file' || !doc.fileName.endsWith('.hcl')) {
+    return;
+  }
+  const { error } = await parseTerragrunt(doc.uri.fsPath, doc.getText());
+  if (error) {
+    diagnostics.set(doc.uri, [
+      new vscode.Diagnostic(
+        parseErrorRange(error),
+        `Terragrunt parse error: ${error}`,
+        vscode.DiagnosticSeverity.Error,
+      ),
+    ]);
+  } else {
+    diagnostics.delete(doc.uri);
+  }
+}
+
+/** Debounced per-document validation while typing (no need to save first). */
+function scheduleValidate(doc: vscode.TextDocument): void {
+  const key = doc.uri.toString();
+  const existing = validateTimers.get(key);
+  if (existing) {
+    clearTimeout(existing);
+  }
+  validateTimers.set(
+    key,
+    setTimeout(() => {
+      validateTimers.delete(key);
+      void validateDocument(doc);
+    }, 300),
+  );
 }
 
 function payload(): GraphPayload {
@@ -209,7 +247,16 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
       scanPromise = rescan(tree);
     }),
+
+    // Live syntax diagnostics while editing (in-memory text, before save).
+    vscode.workspace.onDidChangeTextDocument((e) => scheduleValidate(e.document)),
+    vscode.workspace.onDidOpenTextDocument((doc) => void validateDocument(doc)),
+    { dispose: () => validateTimers.forEach((t) => clearTimeout(t)) },
   );
+
+  if (vscode.window.activeTextEditor) {
+    void validateDocument(vscode.window.activeTextEditor.document);
+  }
 
   // Debounced file watcher.
   const watcher = vscode.workspace.createFileSystemWatcher('**/*.hcl');

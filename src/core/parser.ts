@@ -27,12 +27,25 @@ function asArray(v: unknown): unknown[] {
   return Array.isArray(v) ? v : [];
 }
 
+// Per-session last-known-good cache. hcl2json is all-or-nothing, so while a file is mid-edit
+// (temporarily invalid) we return its last successful parse — keeping navigation / completion /
+// hover / graph edges alive — but still surface the current syntax error to the caller.
+const lastGood = new Map<string, ParsedTerragrunt>();
+
+/** Test-only: clear the last-known-good cache so cases don't leak parse results into each other. */
+export function __resetParseCache(): void {
+  lastGood.clear();
+}
+
 export async function parseTerragrunt(filePath: string, text: string): Promise<ParsedTerragrunt> {
   let json: Record<string, unknown>;
   try {
     json = await parse(filePath, text);
   } catch (e) {
-    return { refs: [], localsMap: {}, mockOutputs: {}, error: e instanceof Error ? e.message : String(e) };
+    const error = e instanceof Error ? e.message : String(e);
+    const prev = lastGood.get(filePath);
+    // Keep the file's index from its last good parse; still report the new syntax error.
+    return prev ? { ...prev, error } : { refs: [], localsMap: {}, mockOutputs: {}, error };
   }
 
   const refs: RawRef[] = [];
@@ -128,5 +141,7 @@ export async function parseTerragrunt(filePath: string, text: string): Promise<P
     }
   }
 
-  return { refs, localsMap, mockOutputs };
+  const result: ParsedTerragrunt = { refs, localsMap, mockOutputs };
+  lastGood.set(filePath, result);
+  return result;
 }

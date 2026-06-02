@@ -142,9 +142,11 @@ parent root config is still treated as dynamic.
 Each `.hcl` file is parsed independently, so one broken file never breaks the rest of the
 graph. A genuine HCL **syntax error** (e.g. an unclosed block) is *surfaced*, not guessed:
 
-- the unit appears in the **Reference Tree** with a ⚠ icon and the error in its tooltip,
-- the error is reported in the **Problems** panel with the line/column (when hcl2json
-  provides it),
+- it's flagged **live as you type** (no need to save) — a red squiggle on the offending line
+  plus an entry in the **Problems** panel with the line/column (when hcl2json provides it),
+- the unit also appears in the **Reference Tree** with a ⚠ icon and the error in its tooltip,
+- while a file is mid-edit and temporarily invalid, it **keeps the index from its last good
+  parse** — navigation, hover, completion, and its graph edges stay alive instead of vanishing,
 - the rest of the project still renders.
 
 Valid HCL whose references are remote or runtime-dynamic renders normally, with those edges

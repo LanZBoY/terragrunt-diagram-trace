@@ -1,5 +1,7 @@
-import { describe, it, expect } from 'vitest';
-import { parseTerragrunt } from '../src/core/parser';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { parseTerragrunt, __resetParseCache } from '../src/core/parser';
+
+beforeEach(() => __resetParseCache());
 
 describe('parseTerragrunt', () => {
   it('extracts a dependency config_path with its label', async () => {
@@ -62,5 +64,33 @@ describe('parseTerragrunt', () => {
   it('ignores read_terragrunt_config inside a comment', async () => {
     const r = await parseTerragrunt('t.hcl', '# read_terragrunt_config("nope.hcl")\nlocals {\n  x = "y"\n}');
     expect(r.refs.filter((x) => x.kind === 'read')).toHaveLength(0);
+  });
+});
+
+describe('last-known-good cache', () => {
+  it('keeps the previous refs when a syntax error appears, but still reports the error', async () => {
+    const f = '/virtual/keep.hcl';
+    const ok = await parseTerragrunt(f, 'dependency "vpc" { config_path = "../vpc" }');
+    expect(ok.error).toBeUndefined();
+    expect(ok.refs).toHaveLength(1);
+
+    const broken = await parseTerragrunt(f, 'dependency "vpc" {\n  config_path = "../vpc"\n');
+    expect(broken.error).toBeTruthy();
+    expect(broken.refs).toEqual(ok.refs); // index preserved across the syntax error
+  });
+
+  it('returns empty + error when a file has never parsed successfully', async () => {
+    const r = await parseTerragrunt('/virtual/never.hcl', 'dependency "x" {\n');
+    expect(r.refs).toEqual([]);
+    expect(r.error).toBeTruthy();
+  });
+
+  it('refreshes the cache once the file parses cleanly again', async () => {
+    const f = '/virtual/refresh.hcl';
+    await parseTerragrunt(f, 'dependency "a" { config_path = "../a" }');
+    await parseTerragrunt(f, 'broken {');
+    const fixed = await parseTerragrunt(f, 'dependency "b" { config_path = "../b" }');
+    expect(fixed.error).toBeUndefined();
+    expect(fixed.refs).toEqual([{ kind: 'dependency', name: 'b', rawValue: '../b' }]);
   });
 });
