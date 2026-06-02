@@ -1,5 +1,8 @@
 # Terragrunt Diagram & Trace
 
+[![CI](https://github.com/LanZBoY/terragrunt-diagram-trace/actions/workflows/ci.yml/badge.svg)](https://github.com/LanZBoY/terragrunt-diagram-trace/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A VS Code extension that scans a Terragrunt project, draws its **reference graph**, and
 lets you **jump straight to referenced files**.
 
@@ -7,6 +10,15 @@ lets you **jump straight to referenced files**.
 > reads `.hcl` files and parses them with a WebAssembly HCL parser
 > ([`@cdktf/hcl2json`](https://www.npmjs.com/package/@cdktf/hcl2json)). No CLI is invoked,
 > no state is touched, nothing is applied.
+
+## Screenshots
+
+> _Screenshots / GIFs go here — capture them from the Extension Development Host (press **F5**)
+> with `fixtures/sample-infra/` loaded, and drop the files under `media/screenshots/`._
+
+| Dependency graph | Click-to-jump navigation |
+| --- | --- |
+| _`media/screenshots/graph.png`_ | _`media/screenshots/jump.gif`_ |
 
 ## Features
 
@@ -70,6 +82,23 @@ bundled `fixtures/sample-infra/` project loaded, then:
 - open the **Terragrunt Trace** view in the Activity Bar, or
 - run **`Terragrunt: Show Dependency Graph`** from the Command Palette, or
 - Cmd/Ctrl+Click a path inside any `dev/*/terragrunt.hcl`.
+
+## Testing
+
+Unit + integration tests run on [vitest](https://vitest.dev) and exercise the parser,
+resolver, and graph builder against `fixtures/sample-infra/` — still **static analysis only**,
+no `terragrunt` / `terraform` CLI is invoked.
+
+```bash
+npm test           # run the suite once
+npm run test:watch # watch mode
+npm run coverage   # text summary + HTML report in coverage/
+```
+
+CI (`.github/workflows/ci.yml`) runs the type-check, the test suite, and packages the VSIX on
+every push / PR — the results are published as a **Vitest Report** check and coverage is
+uploaded as a build artifact. Pushing a version tag (`v*`) builds the VSIX and attaches it to a
+GitHub Release via `.github/workflows/release.yml`.
 
 ## What gets resolved
 

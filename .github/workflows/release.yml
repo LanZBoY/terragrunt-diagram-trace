@@ -1,0 +1,43 @@
+name: Release
+
+# Push a version tag (e.g. `git tag v0.0.1 && git push origin v0.0.1`) to build the
+# VSIX and attach it to an automatically-created GitHub Release.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run check
+
+      - name: Test
+        run: npm test
+
+      - name: Build (extension + webview bundles)
+        run: npm run compile
+
+      - name: Package VSIX
+        # No -o: vsce names it terragrunt-diagram-trace-<version>.vsix from package.json.
+        run: npx --yes @vscode/vsce@latest package
+
+      - name: Create GitHub Release with the VSIX attached
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.vsix"
+          generate_release_notes: true

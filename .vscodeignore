@@ -21,6 +21,15 @@ package-lock.json
 **/tsconfig.json
 **/*.tsbuildinfo
 
+# CI, tests & their artifacts — never shipped:
+.github/**
+test/**
+test-results/**
+coverage/**
+vitest.config.ts
+*.vsix
+**/.DS_Store
+
 # Explicitly re-include the runtime parser closure so it always ships
 # (`!` overrides earlier ignores), even if a broad ignore is introduced later.
 !node_modules/@cdktf/hcl2json/**

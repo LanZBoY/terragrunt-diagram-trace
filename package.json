@@ -129,8 +129,11 @@
     "watch": "node esbuild.js --watch",
     "package": "node esbuild.js --production",
     "check": "tsc --noEmit",
-    "test:parser": "node ./scripts/probe-hcl2json.mjs",
-    "test:scanner": "node ./scripts/probe-scanner.mjs"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage",
+    "probe:parser": "node ./scripts/probe-hcl2json.mjs",
+    "probe:scanner": "node ./scripts/probe-scanner.mjs"
   },
   "dependencies": {
     "@cdktf/hcl2json": "^0.20.0"
@@ -139,10 +142,12 @@
     "@types/cytoscape": "^3.21.0",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
+    "@vitest/coverage-v8": "^2.1.9",
     "cytoscape": "^3.28.1",
     "cytoscape-dagre": "^2.5.0",
     "dagre": "^0.8.5",
     "esbuild": "^0.20.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vitest": "^2.1.9"
   }
 }

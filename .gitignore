@@ -6,3 +6,5 @@ media/graph.js.map
 .vscode-test/
 .probe/
 .DS_Store
+coverage/
+test-results/
