@@ -3,6 +3,9 @@ import { buildModel } from './core/scanner';
 import type { GraphModel } from './core/model';
 import { TerragruntTreeProvider, type TreeNode } from './providers/treeProvider';
 import { TerragruntLinkProvider, TerragruntDefinitionProvider } from './providers/navProvider';
+import { TerragruntHoverProvider } from './providers/hoverProvider';
+import { TerragruntCompletionProvider } from './providers/completionProvider';
+import { clearModuleCache } from './core/moduleIntrospect';
 import { GraphPanel } from './webview/panel';
 import type { GraphPayload } from './shared/graph';
 
@@ -47,6 +50,7 @@ async function rescan(tree: TerragruntTreeProvider): Promise<void> {
   const rootConfigName = config().get<string>('rootConfigName', 'terragrunt.hcl');
   const files = await findHclFiles();
   currentModel = await buildModel(files, roots, { rootConfigName });
+  clearModuleCache(); // module .tf may have changed since last scan; drop introspection cache
   tree.setModel(currentModel);
   publishDiagnostics();
   if (GraphPanel.current) {
@@ -146,6 +150,12 @@ export function activate(context: vscode.ExtensionContext): void {
     diagnostics,
     vscode.languages.registerDocumentLinkProvider(HCL_SELECTOR, new TerragruntLinkProvider()),
     vscode.languages.registerDefinitionProvider(HCL_SELECTOR, new TerragruntDefinitionProvider()),
+    vscode.languages.registerHoverProvider(HCL_SELECTOR, new TerragruntHoverProvider(() => currentModel)),
+    vscode.languages.registerCompletionItemProvider(
+      HCL_SELECTOR,
+      new TerragruntCompletionProvider(() => currentModel),
+      '.',
+    ),
 
     vscode.commands.registerCommand('terragruntTrace.openFileAt', openFileAt),
 

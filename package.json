@@ -79,12 +79,22 @@
       ],
       "editor/context": [
         {
+          "command": "terragruntTrace.showGraph",
+          "when": "resourceExtname == .hcl",
+          "group": "navigation@8"
+        },
+        {
           "command": "terragruntTrace.revealInGraph",
           "when": "resourceExtname == .hcl",
           "group": "navigation@9"
         }
       ],
       "explorer/context": [
+        {
+          "command": "terragruntTrace.showGraph",
+          "when": "resourceExtname == .hcl",
+          "group": "navigation@8"
+        },
         {
           "command": "terragruntTrace.revealInGraph",
           "when": "resourceExtname == .hcl",

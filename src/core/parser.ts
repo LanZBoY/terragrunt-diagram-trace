@@ -17,6 +17,8 @@ export interface ParsedTerragrunt {
   refs: RawRef[];
   /** Merged same-file locals, for best-effort `${local.X}` resolution. */
   localsMap: Record<string, unknown>;
+  /** dependency label → its mock_outputs attribute keys (for completion fallback). */
+  mockOutputs: Record<string, string[]>;
   /** True if hcl2json threw (syntax error / unsupported construct). */
   error?: string;
 }
@@ -30,19 +32,24 @@ export async function parseTerragrunt(filePath: string, text: string): Promise<P
   try {
     json = await parse(filePath, text);
   } catch (e) {
-    return { refs: [], localsMap: {}, error: e instanceof Error ? e.message : String(e) };
+    return { refs: [], localsMap: {}, mockOutputs: {}, error: e instanceof Error ? e.message : String(e) };
   }
 
   const refs: RawRef[] = [];
+  const mockOutputs: Record<string, string[]> = {};
 
   // (a) dependency: OBJECT keyed by name -> ARRAY of bodies
   const dep = json.dependency;
   if (dep && typeof dep === 'object' && !Array.isArray(dep)) {
     for (const name of Object.keys(dep)) {
       for (const body of asArray((dep as Record<string, unknown>)[name])) {
-        const cp = (body as Record<string, unknown>)?.config_path;
-        if (typeof cp === 'string') {
-          refs.push({ kind: 'dependency', name, rawValue: cp });
+        const b = body as Record<string, unknown>;
+        if (typeof b?.config_path === 'string') {
+          refs.push({ kind: 'dependency', name, rawValue: b.config_path });
+        }
+        const mo = b?.mock_outputs;
+        if (mo && typeof mo === 'object' && !Array.isArray(mo)) {
+          mockOutputs[name] = [...(mockOutputs[name] ?? []), ...Object.keys(mo as Record<string, unknown>)];
         }
       }
     }
@@ -121,5 +128,5 @@ export async function parseTerragrunt(filePath: string, text: string): Promise<P
     }
   }
 
-  return { refs, localsMap };
+  return { refs, localsMap, mockOutputs };
 }

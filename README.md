@@ -60,8 +60,9 @@ runtime value) are drawn **dashed red** and point at a diamond "external" node.
   strictly upward in real Terragrunt.)
 - **F12 / Go to Definition / Peek** on the same strings, via a `DefinitionProvider`.
 - **Right-click a `.hcl` file** (in the editor or the Explorer) → **Show Related Modules in
-  Graph** opens the graph focused on that file's relationships. Also available by
-  right-clicking a unit in the Reference Tree.
+  Graph** opens the graph focused on that file's relationships, or **Show Dependency Graph**
+  for the whole graph. The focused view is also available by right-clicking a unit in the
+  Reference Tree.
 - Relative paths resolve against the file's own directory; a dependency directory opens its
   `terragrunt.hcl`; a local module source opens its `main.tf` (or reveals the folder).
 
@@ -69,6 +70,18 @@ runtime value) are drawn **dashed red** and point at a diamond "external" node.
 The **Terragrunt Trace** view lists every unit, grouped by relationship
 (*Dependencies / Run-order / Includes / Source / Reads config*). Click a leaf to jump to the target.
 Remote sources show a ☁ icon; unresolved references show a `?`.
+
+### 4. Hover & completion
+- **Hover** any reference (`config_path`, `source`, an `include` / `read` path) to preview the
+  target: its workspace-relative path, and for a dependency the target unit's `source`, dependency
+  count, and the **outputs** its module declares. Hovering a local `source` lists the module's
+  outputs and variables.
+- **Completion** (type `.`) — context-aware, and **fully static** (names come from module
+  `output` / `variable` declarations and `mock_outputs`, never from state):
+  - `dependency.<name>.outputs.` → that dependency's module outputs ∪ its `mock_outputs` keys.
+  - `dependency.` → dependency labels declared in this file.
+  - `local.` → this file's locals; `local.<x>.locals.` → keys of the config read via
+    `read_terragrunt_config` into `local.<x>`.
 
 ## Getting started (development)
 
