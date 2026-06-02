@@ -31,6 +31,7 @@ vitest.config.ts
 **/.DS_Store
 BACKLOG.md
 README.zh-TW.md
+CLAUDE.md
 
 # Explicitly re-include the runtime parser closure so it always ships
 # (`!` overrides earlier ignores), even if a broad ignore is introduced later.
