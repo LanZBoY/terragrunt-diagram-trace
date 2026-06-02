@@ -1,0 +1,33 @@
+# What to EXCLUDE from the packaged VSIX.
+# vsce already auto-excludes devDependencies and keeps the production-dependency
+# closure (@cdktf/hcl2json + its fs-extra chain). Do NOT add a blanket
+# `node_modules/**` rule — it would strip the runtime WASM parser.
+
+# Source & build tooling — never shipped:
+.vscode/**
+.vscode-test/**
+src/**
+scripts/**
+fixtures/**
+.probe/**
+media/**/*.ts
+**/*.map
+**/*.ts
+.gitignore
+.git/**
+esbuild.js
+tsconfig.json
+package-lock.json
+**/tsconfig.json
+**/*.tsbuildinfo
+
+# Explicitly re-include the runtime parser closure so it always ships
+# (`!` overrides earlier ignores), even if a broad ignore is introduced later.
+!node_modules/@cdktf/hcl2json/**
+!node_modules/@cdktf/hcl2json/main.wasm.gz
+!node_modules/@cdktf/hcl2json/wasm/bridge_wasm_exec.js
+!node_modules/@cdktf/hcl2json/lib/**
+!node_modules/fs-extra/**
+!node_modules/graceful-fs/**
+!node_modules/jsonfile/**
+!node_modules/universalify/**

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+media/graph.js
+media/graph.js.map
+*.vsix
+.vscode-test/
+.probe/
+.DS_Store

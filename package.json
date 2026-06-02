@@ -1,0 +1,148 @@
+{
+  "name": "terragrunt-diagram-trace",
+  "displayName": "Terragrunt Diagram & Trace",
+  "description": "Scan a Terragrunt project, visualize its dependency/include/source reference graph, and jump straight to referenced files.",
+  "version": "0.0.1",
+  "publisher": "jimliu",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LanZBoY/terragrunt-diagram-trace.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "terragrunt",
+    "terraform",
+    "hcl",
+    "graph",
+    "dependency"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:**/terragrunt.hcl",
+    "workspaceContains:**/*.hcl"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "terragruntTrace.showGraph",
+        "title": "Terragrunt: Show Dependency Graph",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "terragruntTrace.rescan",
+        "title": "Terragrunt: Rescan Project",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "terragruntTrace.revealInGraph",
+        "title": "Terragrunt: Show Related Modules in Graph",
+        "icon": "$(type-hierarchy)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "terragruntTrace",
+          "title": "Terragrunt Trace",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "terragruntTrace": [
+        {
+          "id": "terragruntTrace.tree",
+          "name": "Reference Tree",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "terragruntTrace.showGraph",
+          "when": "view == terragruntTrace.tree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "terragruntTrace.rescan",
+          "when": "view == terragruntTrace.tree",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "terragruntTrace.revealInGraph",
+          "when": "resourceExtname == .hcl",
+          "group": "navigation@9"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "terragruntTrace.revealInGraph",
+          "when": "resourceExtname == .hcl",
+          "group": "navigation@9"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "terragruntTrace.revealInGraph",
+          "when": "view == terragruntTrace.tree && viewItem == terragruntUnit",
+          "group": "navigation@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Terragrunt Diagram & Trace",
+      "properties": {
+        "terragruntTrace.scan.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/.terragrunt-cache/**",
+            "**/.terraform/**",
+            "**/node_modules/**",
+            "**/.git/**"
+          ],
+          "description": "Glob patterns to exclude when scanning for terragrunt.hcl files."
+        },
+        "terragruntTrace.rootConfigName": {
+          "type": "string",
+          "default": "terragrunt.hcl",
+          "description": "The Terragrunt config filename used for find_in_parent_folders() resolution."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run check && npm run package",
+    "compile": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "package": "node esbuild.js --production",
+    "check": "tsc --noEmit",
+    "test:parser": "node ./scripts/probe-hcl2json.mjs",
+    "test:scanner": "node ./scripts/probe-scanner.mjs"
+  },
+  "dependencies": {
+    "@cdktf/hcl2json": "^0.20.0"
+  },
+  "devDependencies": {
+    "@types/cytoscape": "^3.21.0",
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "cytoscape": "^3.28.1",
+    "cytoscape-dagre": "^2.5.0",
+    "dagre": "^0.8.5",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.4.0"
+  }
+}
