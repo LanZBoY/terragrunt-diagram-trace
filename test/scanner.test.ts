@@ -12,9 +12,9 @@ const endsWith = (p: string | null | undefined, suffix: string) =>
   !!p && p.split(path.sep).join('/').endsWith(suffix);
 
 describe('walkHclFiles', () => {
-  it('finds every .hcl in the sample project (6 units + 3 shared configs)', () => {
+  it('finds every .hcl in the sample project (7 units + 4 shared configs)', () => {
     const files = walkHclFiles([FIXTURES]);
-    expect(files).toHaveLength(9);
+    expect(files).toHaveLength(11);
     expect(files.some((f) => endsWith(f, 'dev/app/terragrunt.hcl'))).toBe(true);
     expect(files.some((f) => endsWith(f, 'root.hcl'))).toBe(true);
   });
@@ -27,21 +27,38 @@ describe('buildModel over sample-infra', () => {
     model = await buildModel(files, [FIXTURES], { rootConfigName: 'root.hcl' });
   });
 
-  it('keeps only the 6 referencing units (shared configs carry no refs)', () => {
+  it('keeps referencing units only — incl. root.hcl (now reads region.hcl) and dev/queue', () => {
     const labels = model.units.map((u) => u.label).sort();
     expect(labels).toEqual([
       'dev/app',
       'dev/cdn',
       'dev/eks',
       'dev/logging',
+      'dev/queue',
       'dev/rds',
       'dev/vpc',
+      'root.hcl',
     ]);
   });
 
-  it('produces edges of all four relationship kinds', () => {
+  it('produces edges of all five relationship kinds', () => {
     const types = new Set(model.edges.map((e) => e.type));
-    expect(types).toEqual(new Set(['dependency', 'dependencies', 'include', 'source']));
+    expect(types).toEqual(new Set(['dependency', 'dependencies', 'include', 'source', 'read']));
+  });
+
+  it('indexes read_terragrunt_config as a read edge (root.hcl -> region.hcl, same-dir fallback)', () => {
+    const edge = model.edges.find(
+      (e) => e.type === 'read' && endsWith(e.source, 'root.hcl') && endsWith(e.target, 'region.hcl'),
+    );
+    expect(edge).toBeDefined();
+    expect(edge!.resolved).toBe(true);
+  });
+
+  it('resolves dev/queue source from a cross-file read chain into a remote git URL with docs', () => {
+    const queue = unitBy(model, 'dev/queue')!;
+    const source = queue.references.find((r) => r.kind === 'source')!;
+    expect(source.remote).toBe(true);
+    expect(source.docUrl).toBe('https://github.com/acme/mods/tree/v2.0.0/queue');
   });
 
   it('resolves the local module source of dev/app to modules/app/main.tf', () => {

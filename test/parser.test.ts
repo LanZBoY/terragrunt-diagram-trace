@@ -43,4 +43,24 @@ describe('parseTerragrunt', () => {
     expect(r.error).toBeTruthy();
     expect(r.error).toMatch(/bad\.hcl:\d+,\d+/);
   });
+
+  it('extracts a read_terragrunt_config with find_in_parent_folders, wrapped in ${...}', async () => {
+    const r = await parseTerragrunt('t.hcl', 'locals {\n  x = read_terragrunt_config(find_in_parent_folders("region.hcl"))\n}');
+    expect(r.refs).toContainEqual({ kind: 'read', rawValue: '${find_in_parent_folders("region.hcl")}' });
+  });
+
+  it('extracts a read_terragrunt_config with a literal path', async () => {
+    const r = await parseTerragrunt('t.hcl', 'locals {\n  x = read_terragrunt_config("account.hcl")\n}');
+    expect(r.refs).toContainEqual({ kind: 'read', rawValue: 'account.hcl' });
+  });
+
+  it('dedupes repeated reads of the same target', async () => {
+    const r = await parseTerragrunt('t.hcl', 'locals {\n  a = read_terragrunt_config("x.hcl")\n  b = read_terragrunt_config("x.hcl")\n}');
+    expect(r.refs.filter((x) => x.kind === 'read')).toHaveLength(1);
+  });
+
+  it('ignores read_terragrunt_config inside a comment', async () => {
+    const r = await parseTerragrunt('t.hcl', '# read_terragrunt_config("nope.hcl")\nlocals {\n  x = "y"\n}');
+    expect(r.refs.filter((x) => x.kind === 'read')).toHaveLength(0);
+  });
 });

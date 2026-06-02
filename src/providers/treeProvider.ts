@@ -28,6 +28,7 @@ const GROUP_ORDER: { kind: RefKind; label: string; icon: string }[] = [
   { kind: 'dependencies', label: 'Run-order', icon: 'list-ordered' },
   { kind: 'include', label: 'Includes', icon: 'file-symlink-file' },
   { kind: 'source', label: 'Source', icon: 'file-code' },
+  { kind: 'read', label: 'Reads config', icon: 'file-text' },
 ];
 
 export class TerragruntTreeProvider implements vscode.TreeDataProvider<TreeNode> {

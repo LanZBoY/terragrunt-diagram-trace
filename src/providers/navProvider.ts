@@ -27,6 +27,8 @@ function kindLabel(kind: RefKind): string {
       return 'include';
     case 'source':
       return 'module source';
+    case 'read':
+      return 'read config';
   }
 }
 
@@ -214,7 +216,7 @@ export async function findReferenceTokens(
       if (inComment(valueStart)) {
         continue;
       }
-      emit('include', m[1], valueStart, m[1].length);
+      emit('read', m[1], valueStart, m[1].length);
     }
   }
 

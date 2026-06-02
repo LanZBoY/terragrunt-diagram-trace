@@ -66,6 +66,10 @@ body {
   border-top-color: var(--vscode-charts-green, #89d185);
   border-top-style: solid;
 }
+.swatch.read {
+  border-top-color: var(--vscode-charts-yellow, #cca700);
+  border-top-style: dashed;
+}
 
 #actions {
   display: flex;

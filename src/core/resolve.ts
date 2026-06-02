@@ -17,6 +17,12 @@ export interface ResolveCtx {
   localsMap: Record<string, unknown>;
   /** dirname of the first resolved include, if any — backs get_parent_terragrunt_dir() etc. */
   parentDir?: string | null;
+  /**
+   * Resolve another config file's merged locals, for cross-file `${local.x.locals.y}` where
+   * `local.x = read_terragrunt_config(<other file>)`. Supplied by the scanner; absent in
+   * single-file contexts (navProvider), in which case cross-file chains stay unresolved.
+   */
+  fileLocals?: (absHclPath: string) => Record<string, unknown> | undefined;
 }
 
 export interface ResolutionResult {
@@ -30,6 +36,12 @@ export interface ResolutionResult {
   resolved: boolean;
   /** Why not resolved / why best-effort. */
   reason?: string;
+  /**
+   * For a source that interpolated to a concrete REMOTE value (e.g. a git URL assembled from
+   * cross-file locals): the fully substituted string, so the scanner can derive a docs URL from
+   * it rather than from the raw `${...}` value. Absent for local / still-dynamic results.
+   */
+  resolvedValue?: string;
 }
 
 const INTERP = /\$\{([^}]+)\}/g;
@@ -97,8 +109,45 @@ function resolveLocalToken(expr: string, ctx: ResolveCtx, visited: Set<string>):
   if (parts[0] !== 'local') {
     return undefined;
   }
+
+  // local.<x>.locals.<y> — a value read from another config in THIS file's locals, i.e.
+  // local.x = read_terragrunt_config(<other file>). Needs the scanner-supplied fileLocals.
+  if (parts.length === 4 && parts[2] === 'locals') {
+    const readExpr = ctx.localsMap[parts[1]];
+    if (typeof readExpr !== 'string' || !ctx.fileLocals) {
+      return undefined;
+    }
+    const m = readExpr.match(/^\$\{\s*read_terragrunt_config\((.+)\)\s*\}$/);
+    if (!m) {
+      return undefined;
+    }
+    const argRaw = m[1].trim();
+    const readRaw = argRaw.startsWith('"') ? argRaw.slice(1, -1) : `\${${argRaw}}`;
+    const res = resolveReadConfig(readRaw, ctx);
+    if (!res.resolved || !res.targetFile) {
+      return undefined;
+    }
+    const otherLocals = ctx.fileLocals(res.targetFile);
+    const val = otherLocals?.[parts[3]];
+    if (typeof val !== 'string') {
+      return undefined;
+    }
+    if (!val.includes('${')) {
+      return val;
+    }
+    // The other file's local may itself interpolate — resolve it against that file's context.
+    const otherCtx: ResolveCtx = {
+      ...ctx,
+      currentFile: res.targetFile,
+      currentDir: path.dirname(res.targetFile),
+      localsMap: otherLocals ?? {},
+    };
+    const sub = substituteInterpolations(val, otherCtx, visited);
+    return sub.dynamic ? undefined : sub.value;
+  }
+
   if (parts.length !== 2) {
-    return undefined; // nested attr access (e.g. local.x.locals.y) → not statically indexable
+    return undefined; // deeper / other nested attr access → not statically indexable
   }
   const key = parts[1];
   const v = ctx.localsMap[key];
@@ -257,6 +306,41 @@ export function resolveIncludePath(raw: string, ctx: ResolveCtx): ResolutionResu
   return { resolvedAbsPath: r.abs, targetFile, remote: false, resolved: true };
 }
 
+/**
+ * Same-directory fallback for a find_in_parent_folders("NAME") call: a sibling NAME next to the
+ * current file. Strictly upward (real Terragrunt) never matches a same-dir config like region.hcl
+ * sitting next to root.hcl, so read resolution falls back to it (mirrors navProvider navigation).
+ */
+function findInSameDir(raw: string, ctx: ResolveCtx): string | null {
+  const name = raw.match(/find_in_parent_folders\s*\(\s*"([^"]*)"/)?.[1];
+  if (!name) {
+    return null;
+  }
+  const here = path.join(ctx.currentDir, name);
+  try {
+    if (fs.existsSync(here) && fs.statSync(here).isFile()) {
+      return here;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/** read_terragrunt_config(<arg>): the referenced .hcl config file. */
+export function resolveReadConfig(raw: string, ctx: ResolveCtx): ResolutionResult {
+  const r = resolvePathExpr(raw, ctx);
+  if ('dynamic' in r) {
+    const fallback = findInSameDir(raw, ctx);
+    if (fallback) {
+      return { resolvedAbsPath: fallback, targetFile: fallback, remote: false, resolved: true };
+    }
+    return { resolvedAbsPath: null, targetFile: null, remote: false, resolved: false, reason: 'dynamic-function' };
+  }
+  // read always targets a file (the other config), never a unit directory.
+  return { resolvedAbsPath: r.abs, targetFile: r.abs, remote: false, resolved: true };
+}
+
 export interface SourceClass {
   remote: boolean;
   localDir?: string;
@@ -311,7 +395,7 @@ export function resolveSource(raw: string, ctx: ResolveCtx): ResolutionResult {
   }
   const cls = classifySource(value, ctx.currentDir);
   if (cls.remote || !cls.localDir) {
-    return { resolvedAbsPath: null, targetFile: null, remote: true, resolved: false, reason: 'remote-source' };
+    return { resolvedAbsPath: null, targetFile: null, remote: true, resolved: false, reason: 'remote-source', resolvedValue: value };
   }
   // Local module directory. Prefer main.tf as the open target; otherwise the directory itself.
   let targetFile: string | null = null;
@@ -421,5 +505,7 @@ export function resolveReference(kind: RefKind, rawValue: string, ctx: ResolveCt
       return resolveIncludePath(rawValue, ctx);
     case 'source':
       return resolveSource(rawValue, ctx);
+    case 'read':
+      return resolveReadConfig(rawValue, ctx);
   }
 }

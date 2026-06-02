@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { GraphNode, NodeKind } from '../shared/graph';
 import type { GraphModel, ResolvedReference, Unit } from './model';
-import { parseTerragrunt } from './parser';
+import { parseTerragrunt, type RawRef } from './parser';
 import { resolveReference, remoteSourceUrl, type ResolveCtx } from './resolve';
 
 export interface ScanOptions {
@@ -105,6 +105,18 @@ export async function buildModel(files: string[], workspaceRoots: string[], opts
     }
   };
 
+  // Pass 1: parse every file and index its locals by absolute path, so a read_terragrunt_config
+  // chain can reach a file scanned later (cross-file ${local.x.locals.y}).
+  interface ParsedFile {
+    file: string;
+    dir: string;
+    root: string;
+    refs: RawRef[];
+    localsMap: Record<string, unknown>;
+    error?: string;
+  }
+  const parsedFiles: ParsedFile[] = [];
+  const localsByFile = new Map<string, Record<string, unknown>>();
   for (const file of files) {
     let text: string;
     try {
@@ -113,9 +125,13 @@ export async function buildModel(files: string[], workspaceRoots: string[], opts
       continue;
     }
     const { refs, localsMap, error } = await parseTerragrunt(file, text);
-    const dir = path.dirname(file);
-    const root = owningRoot(file, roots);
+    parsedFiles.push({ file, dir: path.dirname(file), root: owningRoot(file, roots), refs, localsMap, error });
+    localsByFile.set(path.resolve(file), localsMap);
+  }
+  const fileLocals = (p: string): Record<string, unknown> | undefined => localsByFile.get(path.resolve(p));
 
+  // Pass 2: build nodes/edges, resolving references with cross-file locals available.
+  for (const { file, dir, root, refs, localsMap, error } of parsedFiles) {
     // The referencing unit is always a node.
     const fileFull = relLabel(file, roots, true);
     ensureNode({
@@ -134,6 +150,7 @@ export async function buildModel(files: string[], workspaceRoots: string[], opts
       workspaceRoot: root,
       rootConfigName: opts.rootConfigName,
       localsMap,
+      fileLocals,
     };
 
     // First resolve includes to learn parentDir (backs get_parent_terragrunt_dir / path_relative_*).
@@ -162,7 +179,12 @@ export async function buildModel(files: string[], workspaceRoots: string[], opts
 
       if (res.remote || !res.resolved) {
         // Non-navigable on disk. A remote module source still gets a browsable docs URL.
-        docUrl = ref.kind === 'source' && res.remote ? remoteSourceUrl(ref.rawValue) ?? undefined : undefined;
+        // Prefer the substituted value (e.g. a git URL assembled from cross-file locals) so a
+        // source built from ${local…} still yields a docs URL; fall back to the raw value.
+        docUrl =
+          ref.kind === 'source' && res.remote
+            ? remoteSourceUrl(res.resolvedValue ?? ref.rawValue) ?? undefined
+            : undefined;
         targetNodeId = `external::${ref.rawValue}`;
         targetLabel = shorten(ref.rawValue);
         ensureNode({

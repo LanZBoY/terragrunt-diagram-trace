@@ -33,6 +33,7 @@ edge style:
 | `dependencies` | `dependencies { paths = […] }` — run-order only | dashed gray |
 | `include` | `include { path = find_in_parent_folders(…) }` — config inheritance | dotted purple |
 | `source` | `terraform { source = … }` — the Terraform module | solid green |
+| `read` | `read_terragrunt_config(…)` — reads another config's values (e.g. account/region locals) | dashed yellow |
 
 Unresolved / remote edges (e.g. a `git::` module source, or a `config_path` built from a
 runtime value) are drawn **dashed red** and point at a diamond "external" node.
@@ -66,7 +67,7 @@ runtime value) are drawn **dashed red** and point at a diamond "external" node.
 
 ### 3. Reference tree (Activity Bar)
 The **Terragrunt Trace** view lists every unit, grouped by relationship
-(*Dependencies / Run-order / Includes / Source*). Click a leaf to jump to the target.
+(*Dependencies / Run-order / Includes / Source / Reads config*). Click a leaf to jump to the target.
 Remote sources show a ☁ icon; unresolved references show a `?`.
 
 ## Getting started (development)
@@ -112,10 +113,16 @@ fields:
 - `get_parent_terragrunt_dir()`, `path_relative_to_include()`, `path_relative_from_include()`
   (best-effort, derived from the resolved `include`).
 - `${local.x}` references whose value is a literal string in the same file.
+- `read_terragrunt_config(...)` is indexed as a **`read`** relationship to the config it loads
+  (e.g. `account.hcl` / `region.hcl`), navigable in the graph and tree.
+- `${local.x.locals.y}` where `local.x = read_terragrunt_config(<file>)` **in the same file** —
+  the other file's locals are loaded so the value resolves across files (this is how a module
+  source assembled from shared locals can still resolve to a concrete URL).
 
-Anything genuinely runtime-only (`read_terragrunt_config(...)`, `dependency.x.outputs.y`,
-`get_env(...)`, `run_cmd(...)`, registry/remote module sources) is shown as an
-**unresolved / remote** node rather than guessed.
+Anything genuinely runtime-only (`dependency.x.outputs.y`, `get_env(...)`, `run_cmd(...)`,
+registry/remote module sources) is shown as an **unresolved / remote** node rather than guessed.
+Locals inherited via an `include` merge are **not** flattened, so a `${local.x}` coming from a
+parent root config is still treated as dynamic.
 
 ## Malformed files
 

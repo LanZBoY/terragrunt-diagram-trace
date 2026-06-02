@@ -88,6 +88,29 @@ export async function parseTerragrunt(filePath: string, text: string): Promise<P
     }
   }
 
+  // read_terragrunt_config(...) anywhere (locals / remote_state / inputs / …) → a 'read' ref.
+  // hcl2json gives no offsets and folds the call into a ${...} string, so we scan the raw text.
+  // Two common argument forms: find_in_parent_folders("NAME") or a literal "PATH".
+  const inComment = (idx: number): boolean => {
+    const lineStart = text.lastIndexOf('\n', idx - 1) + 1;
+    return /[#]|\/\//.test(text.slice(lineStart, idx));
+  };
+  const readSeen = new Set<string>();
+  const readRe = /read_terragrunt_config\s*\(\s*(find_in_parent_folders\s*\(\s*"[^"]*"\s*\)|"[^"]*")/g;
+  let rm: RegExpExecArray | null;
+  while ((rm = readRe.exec(text))) {
+    if (inComment(rm.index)) {
+      continue;
+    }
+    const arg = rm[1].trim();
+    const rawValue = arg.startsWith('"') ? arg.slice(1, -1) : `\${${arg}}`;
+    if (readSeen.has(rawValue)) {
+      continue;
+    }
+    readSeen.add(rawValue);
+    refs.push({ kind: 'read', rawValue });
+  }
+
   // locals: ARRAY of bodies, merged into one map
   const localsMap: Record<string, unknown> = {};
   for (const body of asArray(json.locals)) {

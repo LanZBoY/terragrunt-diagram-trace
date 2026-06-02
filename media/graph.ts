@@ -10,7 +10,7 @@ cytoscape.use(dagre as cytoscape.Ext);
 const vscodeApi = acquireVsCodeApi();
 let cy: cytoscape.Core | undefined;
 const pending: InboundMessage[] = [];
-const activeTypes = new Set<EdgeType>(['dependency', 'dependencies', 'include', 'source']);
+const activeTypes = new Set<EdgeType>(['dependency', 'dependencies', 'include', 'source', 'read']);
 
 // Focus mode: when set, only the focused node's neighborhood (within focusDepth hops) is shown.
 let focusedId: string | null = null;
@@ -76,6 +76,7 @@ function buildStyle(t: ReturnType<typeof theme>): cytoscape.StylesheetStyle[] {
     { selector: 'edge[type="dependencies"]', style: { 'line-color': t.gray, 'target-arrow-color': t.gray, 'line-style': 'dashed' } },
     { selector: 'edge[type="include"]', style: { 'line-color': t.purple, 'target-arrow-color': t.purple, 'line-style': 'dotted' } },
     { selector: 'edge[type="source"]', style: { 'line-color': t.green, 'target-arrow-color': t.green, 'line-style': 'solid', 'target-arrow-shape': 'vee' } },
+    { selector: 'edge[type="read"]', style: { 'line-color': t.yellow, 'target-arrow-color': t.yellow, 'line-style': 'dashed' } },
     { selector: 'edge[resolved=0]', style: { 'line-color': t.red, 'target-arrow-color': t.red, 'line-style': 'dashed', opacity: 0.5 } },
     { selector: '.highlighted', style: { 'border-width': 4, 'border-color': t.yellow, 'z-index': 999 } },
   ];

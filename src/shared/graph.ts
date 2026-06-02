@@ -2,14 +2,14 @@
 // Keep this file dependency-free (no `vscode`, no node builtins) so it can be bundled into
 // the browser webview as well as the node extension.
 
-/** The four Terragrunt reference relationships we model as edges. */
-export type RefKind = 'dependency' | 'dependencies' | 'include' | 'source';
+/** The Terragrunt reference relationships we model as edges. */
+export type RefKind = 'dependency' | 'dependencies' | 'include' | 'source' | 'read';
 export type EdgeType = RefKind;
 
 /** What a graph node represents. */
 export type NodeKind =
   | 'unit' // a terragrunt.hcl unit
-  | 'config' // a non-unit .hcl config file (e.g. root.hcl, env.hcl) — usually an include target
+  | 'config' // a non-unit .hcl config file (e.g. root.hcl, env.hcl) — an include or read target
   | 'module' // a local Terraform module directory (terraform.source target)
   | 'external'; // a remote source or an unresolved reference (non-navigable)
 
@@ -77,4 +77,4 @@ export interface NodeSelectedMessage {
 }
 export type OutboundMessage = ReadyMessage | OpenNodeMessage | NodeSelectedMessage;
 
-export const ALL_EDGE_TYPES: EdgeType[] = ['dependency', 'dependencies', 'include', 'source'];
+export const ALL_EDGE_TYPES: EdgeType[] = ['dependency', 'dependencies', 'include', 'source', 'read'];

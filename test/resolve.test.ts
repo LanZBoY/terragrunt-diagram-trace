@@ -9,6 +9,7 @@ import {
   remoteSourceUrl,
   resolveReference,
   resolveConfigPath,
+  resolveReadConfig,
   type ResolveCtx,
 } from '../src/core/resolve';
 
@@ -159,5 +160,58 @@ describe('resolveReference dispatch', () => {
     const r = resolveReference('source', 'git::git@github.com:acme/m.git//x?ref=v1', ctx());
     expect(r.remote).toBe(true);
     expect(r.resolved).toBe(false);
+  });
+});
+
+describe('resolveReadConfig', () => {
+  let root: string;
+  beforeAll(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'tgt-read-'));
+    fs.mkdirSync(path.join(root, 'ws'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'ws', 'region.hcl'), '# region');
+  });
+  afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  it('resolves a literal read path relative to the current dir', () => {
+    const ws = path.join(root, 'ws');
+    const r = resolveReadConfig('region.hcl', ctx({ currentFile: path.join(ws, 'x.hcl'), currentDir: ws, workspaceRoot: ws }));
+    expect(r.resolved).toBe(true);
+    expect(r.targetFile).toBe(path.join(ws, 'region.hcl'));
+  });
+
+  it('falls back to a same-dir sibling for find_in_parent_folders (region.hcl next to root.hcl)', () => {
+    const ws = path.join(root, 'ws');
+    const r = resolveReadConfig('${find_in_parent_folders("region.hcl")}', ctx({ currentFile: path.join(ws, 'root.hcl'), currentDir: ws, workspaceRoot: ws }));
+    expect(r.resolved).toBe(true);
+    expect(r.targetFile).toBe(path.join(ws, 'region.hcl'));
+  });
+});
+
+describe('cross-file ${local.x.locals.y}', () => {
+  const crossCtx = (fileLocals?: ResolveCtx['fileLocals']) =>
+    ctx({
+      currentFile: '/ws/dev/queue/terragrunt.hcl',
+      currentDir: '/ws/dev/queue',
+      workspaceRoot: '/ws',
+      localsMap: { account: '${read_terragrunt_config("../account.hcl")}' },
+      fileLocals,
+    });
+
+  it('resolves values read from another config in this file', () => {
+    const r = substituteInterpolations(
+      '${local.account.locals.modules_repo}//queue?ref=${local.account.locals.module_version}',
+      crossCtx((p) =>
+        p === '/ws/dev/account.hcl'
+          ? { modules_repo: 'git::git@github.com:acme/mods.git', module_version: 'v2.0.0' }
+          : undefined,
+      ),
+    );
+    expect(r.dynamic).toBe(false);
+    expect(r.value).toBe('git::git@github.com:acme/mods.git//queue?ref=v2.0.0');
+  });
+
+  it('stays dynamic when no fileLocals resolver is supplied', () => {
+    const r = substituteInterpolations('${local.account.locals.modules_repo}', crossCtx(undefined));
+    expect(r.dynamic).toBe(true);
   });
 });
