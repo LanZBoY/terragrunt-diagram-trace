@@ -5,6 +5,7 @@
 export type CompletionContext =
   | { kind: 'outputs'; dep: string }
   | { kind: 'readLocals'; local: string }
+  | { kind: 'dependencyAttr'; dep: string }
   | { kind: 'dependencyName' }
   | { kind: 'localKey' }
   | null;
@@ -17,6 +18,11 @@ export function classifyCompletion(linePrefix: string): CompletionContext {
   m = linePrefix.match(/\blocal\.(\w+)\.locals\.\w*$/);
   if (m) {
     return { kind: 'readLocals', local: m[1] };
+  }
+  // dependency.<name>.<partial> — in a reference this is virtually always `.outputs`.
+  m = linePrefix.match(/\bdependency\.(\w+)\.\w*$/);
+  if (m) {
+    return { kind: 'dependencyAttr', dep: m[1] };
   }
   if (/\bdependency\.\w*$/.test(linePrefix)) {
     return { kind: 'dependencyName' };

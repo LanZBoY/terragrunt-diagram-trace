@@ -16,6 +16,13 @@ describe('classifyCompletion', () => {
     expect(classifyCompletion('  x = dependency.ek')).toEqual({ kind: 'dependencyName' });
   });
 
+  it('detects dependency.<name>.<partial> as dependencyAttr (→ outputs)', () => {
+    expect(classifyCompletion('  x = dependency.waf.')).toEqual({ kind: 'dependencyAttr', dep: 'waf' });
+    expect(classifyCompletion('  x = dependency.waf.out')).toEqual({ kind: 'dependencyAttr', dep: 'waf' });
+    // .outputs. (trailing dot) is the deeper field context, not dependencyAttr.
+    expect(classifyCompletion('  x = dependency.waf.outputs.')).toEqual({ kind: 'outputs', dep: 'waf' });
+  });
+
   it('detects a bare local.<partial>', () => {
     expect(classifyCompletion('  region = local.')).toEqual({ kind: 'localKey' });
     expect(classifyCompletion('  region = local.aws_re')).toEqual({ kind: 'localKey' });

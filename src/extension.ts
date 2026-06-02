@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { buildModel } from './core/scanner';
 import { parseTerragrunt } from './core/parser';
+import { dependencyModuleDir, introspectModule } from './core/moduleIntrospect';
+import { scanOutputRefs } from './core/outputRefs';
 import type { GraphModel } from './core/model';
 import { TerragruntTreeProvider, type TreeNode } from './providers/treeProvider';
 import { TerragruntLinkProvider, TerragruntDefinitionProvider } from './providers/navProvider';
@@ -57,6 +59,11 @@ async function rescan(tree: TerragruntTreeProvider): Promise<void> {
   if (GraphPanel.current) {
     GraphPanel.current.update(payload());
   }
+  // Re-run live validation on open editors so unknown-output warnings survive publishDiagnostics'
+  // clear (it only restores syntax errors from the model).
+  for (const ed of vscode.window.visibleTextEditors) {
+    void validateDocument(ed.document);
+  }
 }
 
 /** hcl2json error strings look like "<file>:<line>,<col>-<col>: summary; detail". Extract a range. */
@@ -92,20 +99,69 @@ function publishDiagnostics(): void {
 
 const validateTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-/** Re-parse a .hcl document's in-memory text and set/clear its syntax-error diagnostic live. */
+function inComment(text: string, idx: number): boolean {
+  const lineStart = text.lastIndexOf('\n', idx - 1) + 1;
+  return /[#]|\/\//.test(text.slice(lineStart, idx));
+}
+
+/**
+ * Warn on dependency.<name>.outputs.<field> when <field> isn't an output the module declares
+ * (∪ its mock_outputs). Only checked when the module resolves locally; a remote/unresolvable
+ * module is skipped (we can't know its outputs, so we never guess). Warning, not Error.
+ */
+async function unknownOutputDiagnostics(
+  doc: vscode.TextDocument,
+  mockOutputs: Record<string, string[]>,
+): Promise<vscode.Diagnostic[]> {
+  const text = doc.getText();
+  const validByDep = new Map<string, Set<string> | null>(); // null = module unresolvable → skip
+  const out: vscode.Diagnostic[] = [];
+  for (const ref of scanOutputRefs(text)) {
+    if (inComment(text, ref.fieldIndex)) {
+      continue;
+    }
+    let valid = validByDep.get(ref.dep);
+    if (valid === undefined) {
+      const dir = dependencyModuleDir(currentModel, doc.uri.fsPath, ref.dep);
+      valid = dir
+        ? new Set<string>([...(await introspectModule(dir)).outputs, ...(mockOutputs[ref.dep] ?? [])])
+        : null;
+      validByDep.set(ref.dep, valid);
+    }
+    if (valid && !valid.has(ref.field)) {
+      out.push(
+        new vscode.Diagnostic(
+          new vscode.Range(doc.positionAt(ref.fieldIndex), doc.positionAt(ref.fieldIndex + ref.field.length)),
+          `Unknown output "${ref.field}" on dependency "${ref.dep}" (not declared by its module).`,
+          vscode.DiagnosticSeverity.Warning,
+        ),
+      );
+    }
+  }
+  return out;
+}
+
+/** Re-parse a .hcl document's in-memory text and set/clear its diagnostics live (syntax error,
+ *  else unknown-output warnings). */
 async function validateDocument(doc: vscode.TextDocument): Promise<void> {
   if (!diagnostics || doc.uri.scheme !== 'file' || !doc.fileName.endsWith('.hcl')) {
     return;
   }
-  const { error } = await parseTerragrunt(doc.uri.fsPath, doc.getText());
-  if (error) {
-    diagnostics.set(doc.uri, [
+  const parsed = await parseTerragrunt(doc.uri.fsPath, doc.getText());
+  const diags: vscode.Diagnostic[] = [];
+  if (parsed.error) {
+    diags.push(
       new vscode.Diagnostic(
-        parseErrorRange(error),
-        `Terragrunt parse error: ${error}`,
+        parseErrorRange(parsed.error),
+        `Terragrunt parse error: ${parsed.error}`,
         vscode.DiagnosticSeverity.Error,
       ),
-    ]);
+    );
+  } else {
+    diags.push(...(await unknownOutputDiagnostics(doc, parsed.mockOutputs)));
+  }
+  if (diags.length) {
+    diagnostics.set(doc.uri, diags);
   } else {
     diagnostics.delete(doc.uri);
   }

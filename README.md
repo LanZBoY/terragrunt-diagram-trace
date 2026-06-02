@@ -79,7 +79,9 @@ Remote sources show a ☁ icon; unresolved references show a `?`.
 - **Completion** (type `.`) — context-aware, and **fully static** (names come from module
   `output` / `variable` declarations and `mock_outputs`, never from state):
   - `dependency.<name>.outputs.` → that dependency's module outputs ∪ its `mock_outputs` keys.
-  - `dependency.` → dependency labels declared in this file.
+  - `dependency.` → dependency labels; picking one inserts `<name>.outputs.` and re-opens the
+    list so you go straight to choosing an output (a dependency reference is almost always
+    `.outputs.<field>`).
   - `local.` → this file's locals; `local.<x>.locals.` → keys of the config read via
     `read_terragrunt_config` into `local.<x>`.
 
@@ -147,6 +149,9 @@ graph. A genuine HCL **syntax error** (e.g. an unclosed block) is *surfaced*, no
 - the unit also appears in the **Reference Tree** with a ⚠ icon and the error in its tooltip,
 - while a file is mid-edit and temporarily invalid, it **keeps the index from its last good
   parse** — navigation, hover, completion, and its graph edges stay alive instead of vanishing,
+- a `dependency.<name>.outputs.<field>` whose `<field>` isn't declared by the module (nor in
+  `mock_outputs`) gets a **warning** — but only when the module resolves locally; remote /
+  dynamic sources are left alone, since their outputs can't be known statically,
 - the rest of the project still renders.
 
 Valid HCL whose references are remote or runtime-dynamic renders normally, with those edges

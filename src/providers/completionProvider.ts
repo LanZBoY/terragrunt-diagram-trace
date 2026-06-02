@@ -46,6 +46,10 @@ async function readChainLocalKeys(file: string, localValue: unknown, rcn: string
 const items = (labels: Iterable<string>, kind: vscode.CompletionItemKind): vscode.CompletionItem[] =>
   [...labels].map((l) => new vscode.CompletionItem(l, kind));
 
+// Re-open the suggestion list after an insert so e.g. picking `waf` → `waf.outputs.` flows
+// straight into choosing an output.
+const RETRIGGER: vscode.Command = { command: 'editor.action.triggerSuggest', title: '' };
+
 export class TerragruntCompletionProvider implements vscode.CompletionItemProvider {
   constructor(private readonly getModel: () => GraphModel) {}
 
@@ -76,9 +80,21 @@ export class TerragruntCompletionProvider implements vscode.CompletionItemProvid
       }
       case 'readLocals':
         return items(await readChainLocalKeys(file, parsed.localsMap[ctx.local], rcn), vscode.CompletionItemKind.Variable);
+      case 'dependencyAttr': {
+        // A dependency reference is followed by `outputs` essentially always.
+        const it = new vscode.CompletionItem('outputs', vscode.CompletionItemKind.Field);
+        it.insertText = 'outputs.';
+        it.command = RETRIGGER;
+        return [it];
+      }
       case 'dependencyName': {
         const names = new Set(parsed.refs.filter((r) => r.kind === 'dependency' && r.name).map((r) => r.name!));
-        return items(names, vscode.CompletionItemKind.Module);
+        return [...names].map((n) => {
+          const it = new vscode.CompletionItem(n, vscode.CompletionItemKind.Module);
+          it.insertText = `${n}.outputs.`; // dependency refs are virtually always .outputs.<field>
+          it.command = RETRIGGER;
+          return it;
+        });
       }
       case 'localKey':
         return items(Object.keys(parsed.localsMap), vscode.CompletionItemKind.Variable);
