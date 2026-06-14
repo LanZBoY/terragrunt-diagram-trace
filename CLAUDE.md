@@ -25,6 +25,8 @@ read, nothing is applied. If a task appears to require running the CLI, ask the 
 - `npx @vscode/vsce package` — build the `.vsix` (CI uses `@vscode/vsce@latest`).
 - **F5** (`.vscode/launch.json`) — Extension Development Host with `fixtures/sample-infra/` loaded.
 - `npm run probe:parser` / `probe:scanner` — standalone Node probes against the core (no vscode).
+  `scripts/` also has unscripted probes run directly with `node` (`probe-docurl.mjs`,
+  `probe-malformed.mjs`) for ad-hoc investigation.
 
 ## Architecture
 
@@ -41,7 +43,8 @@ vitest and the probe scripts. `parser` / `resolve` / `scanner` / `moduleIntrospe
 `completionContext` / `outputRefs` live there. `src/providers/**`, `src/webview/**`, and
 `extension.ts` are the vscode shell and route through core. When provider logic is non-trivial,
 extract the pure part into a core helper so it stays testable (e.g. `completionContext.classifyCompletion`,
-`outputRefs.scanOutputRefs`).
+`outputRefs.scanOutputRefs`). `core/model.ts` holds the shared data types (the `buildModel` output
+shape) that scanner produces and the providers/webview consume — start there to learn the domain model.
 
 **`parseTerragrunt` (`core/parser.ts`) is the hub** — scanner, navProvider, hoverProvider, and
 completionProvider all parse through it. Two non-obvious behaviors:
